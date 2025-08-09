@@ -1,0 +1,41 @@
+{
+  "name": "ai-cloud-storage",
+  "version": "1.0.0",
+  "description": "AI-powered cloud storage with intelligent categorization and duplicate detection",
+  "main": "backend/server.js",
+  "scripts": {
+    "setup": "node setup-firebase.js",
+    "setup-firebase": "node setup-firebase.js",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "test": "cd backend && npm test && cd ../frontend && npm test"
+  },
+  "keywords": [
+    "ai",
+    "cloud-storage",
+    "file-categorization",
+    "duplicate-detection",
+    "react",
+    "nodejs",
+    "mongodb",
+    "minio",
+    "firebase"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "mongoose": "^8.17.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

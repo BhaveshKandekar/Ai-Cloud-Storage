@@ -1,0 +1,7 @@
+version: '3.7'
+
+services:
+  minio:
+    extends:
+      file: ./storage/docker-compose.yml   # Path to the MinIO config
+      service: minio                       # Name of the service to import
