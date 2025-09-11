@@ -91,3 +91,4 @@ To test the implementation:
 4. Use the Files page to search, filter, and manage files
 
 The dashboard will automatically update as files are uploaded, deleted, or categorized.
+

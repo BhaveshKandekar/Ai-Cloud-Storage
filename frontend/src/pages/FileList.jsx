@@ -22,7 +22,6 @@ export default function FileList({ refreshTrigger }) {
         },
       });
 
-      // ✅ Sort files alphabetically by name
       const sortedFiles = res.data.sort((a, b) =>
         a.name.localeCompare(b.name)
       );
@@ -36,8 +35,7 @@ export default function FileList({ refreshTrigger }) {
     }
   };
 
-  const handleDelete = async (fileName) => {
-    // Add confirmation dialog
+  const handleDelete = async (fileId, fileName) => {
     if (!window.confirm(`Are you sure you want to delete "${fileName}"?`)) {
       return;
     }
@@ -48,13 +46,10 @@ export default function FileList({ refreshTrigger }) {
       if (!user) throw new Error("User not authenticated");
       const token = await user.getIdToken();
 
-      await axios.delete(`http://localhost:5000/api/files/${encodeURIComponent(fileName)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      await axios.delete(`http://localhost:5000/api/files/${fileId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      // Refresh the file list after successful deletion
       fetchFiles();
     } catch (err) {
       console.error("Error deleting file:", err);
@@ -62,7 +57,30 @@ export default function FileList({ refreshTrigger }) {
     }
   };
 
-  // Fetch on mount + whenever refreshTrigger changes
+  const handleDownload = async (fileId, fileName) => {
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not authenticated");
+      const token = await user.getIdToken();
+
+      const res = await axios.get(
+        `http://localhost:5000/api/files/${fileId}/download`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const link = document.createElement("a");
+      link.href = res.data.downloadUrl;
+      link.download = fileName;
+      link.click();
+    } catch (err) {
+      console.error("Error downloading file:", err);
+      setError("Failed to download file");
+    }
+  };
+
   useEffect(() => {
     fetchFiles();
     // eslint-disable-next-line
@@ -78,24 +96,21 @@ export default function FileList({ refreshTrigger }) {
         <p className="text-gray-500">No files uploaded yet.</p>
       ) : (
         <ul className="space-y-2">
-          {files.map((file, index) => (
+          {files.map((file) => (
             <li
-              key={index}
+              key={file._id}
               className="flex items-center justify-between p-2 border rounded hover:bg-gray-50"
             >
-              {/* ✅ Show exact original name from backend */}
               <span className="truncate max-w-[70%]">{file.name}</span>
               <div className="flex gap-2">
-                <a
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => handleDownload(file._id, file.name)}
                   className="text-blue-500 hover:underline px-2 py-1 rounded hover:bg-blue-50"
                 >
                   Download
-                </a>
+                </button>
                 <button
-                  onClick={() => handleDelete(file.name)}
+                  onClick={() => handleDelete(file._id, file.name)}
                   className="text-red-500 hover:underline px-2 py-1 rounded hover:bg-red-50 hover:text-red-700"
                 >
                   Delete

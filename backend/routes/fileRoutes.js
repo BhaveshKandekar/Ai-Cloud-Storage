@@ -6,7 +6,6 @@ const { minioClient, BUCKET_NAME } = require('../config/minio');
 const admin = require('../config/firebase');
 const File = require('../models/File'); // Import your Mongoose File model
 const { categorizeFile } = require('../services/aiCategorization'); // Import AI categorization service
-
 const router = express.Router();
 const upload = multer(); // in-memory
 
@@ -14,7 +13,6 @@ const upload = multer(); // in-memory
 async function verifyToken(req, res, next) {
   const token = req.headers.authorization?.split('Bearer ')[1];
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
-
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.userId = decodedToken.uid;
@@ -27,17 +25,14 @@ async function verifyToken(req, res, next) {
 // Upload file - with duplicate detection, metadata saving, and AI categorization
 router.post('/uploads', verifyToken, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
   try {
     const userId = req.userId;
     const originalName = req.file.originalname;
     const size = req.file.size;
     const buffer = req.file.buffer;
     const mimetype = req.file.mimetype;
-
     // Calculate SHA-256 hash of the file buffer
     const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-
     // Check if file with same hash already exists for this user
     const existingFile = await File.findOne({ userId, hash });
     if (existingFile) {
@@ -48,7 +43,6 @@ router.post('/uploads', verifyToken, upload.single('file'), async (req, res) => 
         canReplace: true
       });
     }
-
     // Check if file with same name already exists for this user
     const existingFileName = await File.findOne({ userId, fileName: originalName });
     if (existingFileName) {
@@ -59,7 +53,6 @@ router.post('/uploads', verifyToken, upload.single('file'), async (req, res) => 
         canReplace: true
       });
     }
-
     // Step 3: AI Auto Categorization
     let category = 'Uncategorized';
     try {
@@ -76,13 +69,17 @@ router.post('/uploads', verifyToken, upload.single('file'), async (req, res) => 
       category = 'Other';
     }
 
+    // FIX: Ensure bucket exists before uploading
+    const bucketExists = await minioClient.bucketExists(BUCKET_NAME);
+    if (!bucketExists) {
+      await minioClient.makeBucket(BUCKET_NAME, 'us-east-1'); // adjust region if needed
+    }
+
     // Prepare MinIO file path
     const filePath = `${userId}/${originalName}`;
-
     // Upload file to MinIO
     const fileStream = Readable.from(buffer);
     await minioClient.putObject(BUCKET_NAME, filePath, fileStream, size);
-
     // Save file metadata to MongoDB with AI-generated category
     const newFile = new File({
       userId,
@@ -94,7 +91,6 @@ router.post('/uploads', verifyToken, upload.single('file'), async (req, res) => 
       uploadDate: new Date(),
     });
     await newFile.save();
-
     res.status(200).json({ 
       message: '✅ File uploaded successfully', 
       file: newFile,
@@ -110,7 +106,6 @@ router.post('/uploads', verifyToken, upload.single('file'), async (req, res) => 
 router.post('/uploads/replace', verifyToken, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   if (!req.body.existingFileId) return res.status(400).json({ error: 'existingFileId is required' });
-
   try {
     const userId = req.userId;
     const originalName = req.file.originalname;
@@ -118,16 +113,13 @@ router.post('/uploads/replace', verifyToken, upload.single('file'), async (req, 
     const buffer = req.file.buffer;
     const mimetype = req.file.mimetype;
     const existingFileId = req.body.existingFileId;
-
     // Verify the existing file belongs to this user
     const existingFile = await File.findOne({ _id: existingFileId, userId });
     if (!existingFile) {
       return res.status(404).json({ error: 'Existing file not found or access denied' });
     }
-
     // Calculate new hash
     const newHash = crypto.createHash('sha256').update(buffer).digest('hex');
-
     // Step 3: AI Auto Categorization
     let category = 'Uncategorized';
     try {
@@ -143,13 +135,17 @@ router.post('/uploads/replace', verifyToken, upload.single('file'), async (req, 
       category = 'Other';
     }
 
+    // FIX: Ensure bucket exists before uploading
+    const bucketExists = await minioClient.bucketExists(BUCKET_NAME);
+    if (!bucketExists) {
+      await minioClient.makeBucket(BUCKET_NAME, 'us-east-1'); // adjust region if needed
+    }
+
     // Remove old file from MinIO
     await minioClient.removeObject(BUCKET_NAME, existingFile.filePath);
-
     // Upload new file to MinIO
     const fileStream = Readable.from(buffer);
     await minioClient.putObject(BUCKET_NAME, existingFile.filePath, fileStream, size);
-
     // Update file metadata in MongoDB
     existingFile.fileName = originalName;
     existingFile.category = category;
@@ -157,7 +153,6 @@ router.post('/uploads/replace', verifyToken, upload.single('file'), async (req, 
     existingFile.size = size;
     existingFile.uploadDate = new Date();
     await existingFile.save();
-
     res.status(200).json({ 
       message: '✅ File replaced successfully', 
       file: existingFile,
@@ -219,12 +214,71 @@ router.get('/files', verifyToken, async (req, res) => {
   }
 });
 
-// Delete file (unchanged)
+// Download file
+router.get('/files/download/:fileName', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const fileName = decodeURIComponent(req.params.fileName);
+    
+    // Find the file in MongoDB
+    const fileDoc = await File.findOne({ userId, fileName });
+    if (!fileDoc) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    
+    // Get file stream from MinIO
+    const fileStream = await minioClient.getObject(BUCKET_NAME, fileDoc.filePath);
+    
+    // Set appropriate headers
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Length', fileDoc.size);
+    
+    // Pipe the file stream to response
+    fileStream.pipe(res);
+    
+    fileStream.on('error', (err) => {
+      console.error('❌ Error streaming file:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to download file' });
+      }
+    });
+    
+  } catch (err) {
+    console.error('❌ Error downloading file:', err);
+    res.status(500).json({ error: 'Failed to download file', details: err.message });
+  }
+});
+
+// Delete file by filename in URL parameter
+router.delete('/files/:fileName', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const fileName = decodeURIComponent(req.params.fileName);
+    
+    // Find the file in MongoDB first
+    const fileDoc = await File.findOne({ userId, fileName });
+    if (!fileDoc) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    // Delete from MinIO
+    await minioClient.removeObject(BUCKET_NAME, fileDoc.filePath);
+    
+    // Delete from MongoDB
+    await File.findByIdAndDelete(fileDoc._id);
+    
+    res.status(200).json({ message: '✅ File deleted successfully' });
+  } catch (err) {
+    console.error('❌ Error deleting file:', err);
+    res.status(500).json({ error: 'Failed to delete file', details: err.message });
+  }
+});
+
+// Keep the old delete endpoint for backward compatibility
 router.delete('/files', verifyToken, async (req, res) => {
   try {
     const { fileName } = req.body;
     if (!fileName) return res.status(400).json({ error: 'fileName is required in body' });
-
     const userId = req.userId;
     
     // Find the file in MongoDB first
@@ -232,7 +286,6 @@ router.delete('/files', verifyToken, async (req, res) => {
     if (!fileDoc) {
       return res.status(404).json({ error: 'File not found' });
     }
-
     // Delete from MinIO
     await minioClient.removeObject(BUCKET_NAME, fileDoc.filePath);
     
@@ -315,5 +368,4 @@ router.get('/analytics', verifyToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to get storage analytics' });
   }
 });
-
 module.exports = router;

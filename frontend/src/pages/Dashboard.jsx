@@ -50,7 +50,17 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchAnalytics();
+    const auth = getAuth();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchAnalytics();
+      } else {
+        setError("User not authenticated");
+        setLoading(false);
+      }
+    });
+    
+    return () => unsubscribe();
   }, []);
 
   if (loading) {

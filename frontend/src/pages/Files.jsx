@@ -35,43 +35,50 @@ export default function Files() {
     }
   };
 
-  // Filter files based on search term and category
-  useEffect(() => {
-    let filtered = files;
-    
-    if (searchTerm) {
-      filtered = filtered.filter(file => 
-        file.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    if (selectedCategory !== "All") {
-      filtered = filtered.filter(file => file.category === selectedCategory);
-    }
-    
-    setFilteredFiles(filtered);
-  }, [files, searchTerm, selectedCategory]);
-
-  // Get unique categories for filter dropdown
-  const categories = ["All", ...Array.from(new Set(files.map(file => file.category).filter(Boolean)))];
-
-  const handleDelete = async (fileName) => {
-    if (!window.confirm(`Are you sure you want to delete "${fileName}"?`)) {
-      return;
-    }
-
+  // ERROR FIX: Download handler using axios with blob response
+  const handleDownload = async (file) => {
     try {
       const auth = getAuth();
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
       const token = await user.getIdToken();
 
-      await axios.delete(`${API_BASE}/files`, {
+      const response = await axios.get(
+        `${API_BASE}/files/download/${encodeURIComponent(file.name)}`,
+        {
+          responseType: "blob",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", file.name);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading file:", err);
+      alert("Download failed.");
+    }
+  };
+
+  // ERROR FIX: Delete uses RESTful URL param instead of request body
+  const handleDelete = async (fileName) => {
+    if (!window.confirm(`Are you sure you want to delete "${fileName}"?`)) {
+      return;
+    }
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not authenticated");
+      const token = await user.getIdToken();
+
+      await axios.delete(`${API_BASE}/files/${encodeURIComponent(fileName)}`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
         },
-        data: { fileName },
       });
 
       fetchFiles();
@@ -80,10 +87,13 @@ export default function Files() {
     }
   };
 
+  // ERROR FIX: Bulk delete uses RESTful URL param for each file
   const handleBulkDelete = async () => {
     if (selectedFiles.length === 0) return;
-    
-    if (!window.confirm(`Are you sure you want to delete ${selectedFiles.length} selected files?`)) {
+
+    if (
+      !window.confirm(`Are you sure you want to delete ${selectedFiles.length} selected files?`)
+    ) {
       return;
     }
 
@@ -93,14 +103,11 @@ export default function Files() {
       if (!user) throw new Error("User not authenticated");
       const token = await user.getIdToken();
 
-      // Delete files one by one
-      const deletePromises = selectedFiles.map(fileName => 
-        axios.delete(`${API_BASE}/files`, {
+      const deletePromises = selectedFiles.map((fileName) =>
+        axios.delete(`${API_BASE}/files/${encodeURIComponent(fileName)}`, {
           headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
           },
-          data: { fileName },
         })
       );
 
@@ -113,35 +120,57 @@ export default function Files() {
     }
   };
 
+  // The rest is your original code exactly:
+  useEffect(() => {
+    let filtered = files;
+
+    if (searchTerm) {
+      filtered = filtered.filter((file) =>
+        file.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (selectedCategory !== "All") {
+      filtered = filtered.filter((file) => file.category === selectedCategory);
+    }
+
+    setFilteredFiles(filtered);
+  }, [files, searchTerm, selectedCategory]);
+
+  const categories = [
+    "All",
+    ...Array.from(new Set(files.map((file) => file.category).filter(Boolean))),
+  ];
+
   const handleSelectAll = () => {
     if (selectedFiles.length === filteredFiles.length) {
       setSelectedFiles([]);
     } else {
-      setSelectedFiles(filteredFiles.map(file => file.name));
+      setSelectedFiles(filteredFiles.map((file) => file.name));
     }
   };
 
   const handleFileSelect = (fileName) => {
     if (selectedFiles.includes(fileName)) {
-      setSelectedFiles(selectedFiles.filter(name => name !== fileName));
+      setSelectedFiles(selectedFiles.filter((name) => name !== fileName));
     } else {
       setSelectedFiles([...selectedFiles, fileName]);
     }
   };
 
   const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 B';
+    if (bytes === 0) return "0 B";
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -172,7 +201,7 @@ export default function Files() {
             {filteredFiles.length} of {files.length} files
           </p>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           {/* Search Bar */}
           <div className="relative">
@@ -185,15 +214,17 @@ export default function Files() {
               className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white w-full sm:w-64"
             />
           </div>
-          
+
           {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
           >
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
             ))}
           </select>
         </div>
@@ -226,8 +257,8 @@ export default function Files() {
             <Search className="w-8 h-8 text-gray-400" />
           </div>
           <p className="text-gray-500 dark:text-gray-400 text-lg">
-            {searchTerm || selectedCategory !== "All" 
-              ? "No files match your search criteria" 
+            {searchTerm || selectedCategory !== "All"
+              ? "No files match your search criteria"
               : "No files uploaded yet"}
           </p>
           {!searchTerm && selectedCategory === "All" && (
@@ -244,16 +275,26 @@ export default function Files() {
                 <th className="text-left py-3 px-4">
                   <input
                     type="checkbox"
-                    checked={selectedFiles.length === filteredFiles.length && filteredFiles.length > 0}
+                    checked={
+                      selectedFiles.length === filteredFiles.length && filteredFiles.length > 0
+                    }
                     onChange={handleSelectAll}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Filename</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Category</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">
+                  Filename
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">
+                  Category
+                </th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Size</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Upload Date</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Actions</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">
+                  Upload Date
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -274,7 +315,7 @@ export default function Files() {
                     <div className="flex items-center">
                       <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mr-3">
                         <span className="text-blue-600 dark:text-blue-400 text-xs font-medium">
-                          {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
+                          {file.name.split(".").pop()?.toUpperCase() || "FILE"}
                         </span>
                       </div>
                       <span className="font-medium text-gray-900 dark:text-white truncate max-w-32">
@@ -284,21 +325,19 @@ export default function Files() {
                   </td>
                   <td className="py-3 px-4">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                      {file.category || 'Uncategorized'}
+                      {file.category || "Uncategorized"}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
-                    {formatBytes(file.size)}
-                  </td>
-                  <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
-                    {formatDate(file.lastModified)}
-                  </td>
+                  <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{formatBytes(file.size)}</td>
+                  <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{formatDate(file.lastModified)}</td>
                   <td className="py-3 px-4">
                     <div className="flex items-center space-x-2">
                       <a
-                        href={file.url}
-                        target="_blank"
-                        rel="noreferrer"
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDownload(file);
+                        }}
                         className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                         title="Download"
                       >

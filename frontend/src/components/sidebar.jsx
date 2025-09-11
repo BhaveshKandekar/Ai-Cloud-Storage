@@ -28,11 +28,9 @@ export default function Sidebar({ isDark, setIsDark, onLogout }) {
         {/* User Info */}
         {user && (
           <div className="flex items-center space-x-3 mb-8">
-            <img
-              src={user.photoURL || "https://ui-avatars.com/api/?name=User"}
-              alt="Profile"
-              className="w-10 h-10 rounded-full border"
-            />
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-lg">
+        {(user.displayName || "U").charAt(0)}
+      </div>
             <div>
               <div className="font-semibold">{user.displayName || "User"}</div>
               <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[120px]">{user.email}</div>
