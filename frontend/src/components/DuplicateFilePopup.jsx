@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { getAuth } from 'firebase/auth';
 
-const API_BASE = "http://localhost:5000/api";
+import API_BASE from "../config/api";
 
 export default function DuplicateFilePopup({ 
   isOpen, 

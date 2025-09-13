@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { getAuth } from "firebase/auth";
+import API_BASE from "../config/api";
 
 export default function FileList({ refreshTrigger }) {
   const [files, setFiles] = useState([]);
@@ -16,7 +17,7 @@ export default function FileList({ refreshTrigger }) {
       if (!user) throw new Error("User not authenticated");
       const token = await user.getIdToken();
 
-      const res = await axios.get("http://localhost:5000/api/files", {
+      const res = await axios.get(`${API_BASE}/files`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -46,7 +47,7 @@ export default function FileList({ refreshTrigger }) {
       if (!user) throw new Error("User not authenticated");
       const token = await user.getIdToken();
 
-      await axios.delete(`http://localhost:5000/api/files/${fileId}`, {
+      await axios.delete(`${API_BASE}/files/${fileId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -65,7 +66,7 @@ export default function FileList({ refreshTrigger }) {
       const token = await user.getIdToken();
 
       const res = await axios.get(
-        `http://localhost:5000/api/files/${fileId}/download`,
+        `${API_BASE}/files/${fileId}/download`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

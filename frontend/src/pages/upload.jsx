@@ -3,7 +3,7 @@ import axios from "axios";
 import { getAuth } from "firebase/auth"; // Add this import
 import DuplicateFilePopup from "../components/DuplicateFilePopup";
 
-const API_BASE = "http://localhost:5000/api";
+import API_BASE from "../config/api";
 
 export default function Upload({ onUploadSuccess }) {
   const [file, setFile] = useState(null);

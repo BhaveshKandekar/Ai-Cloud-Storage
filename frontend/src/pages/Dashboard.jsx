@@ -21,7 +21,7 @@ import {
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale);
 
-const API_BASE = "http://localhost:5000/api";
+import API_BASE from "../config/api";
 
 export default function Dashboard() {
   const [analytics, setAnalytics] = useState(null);
