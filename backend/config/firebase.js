@@ -6,6 +6,7 @@ let serviceAccount;
 // Check if we're in production (Render sets NODE_ENV=production)
 const isProduction = process.env.NODE_ENV === 'production';
 
+
 if (isProduction) {
   // Production: Must use environment variable
   if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
