@@ -2,24 +2,11 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 
-const mongoose = require('mongoose');
-
-const mongoURI = 'mongodb://localhost:27017/ai-cloud-storage'; // replace with your MongoDB URI
-
-// Make MongoDB connection non-blocking
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-  socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-})
-.then(() => console.log('✅ MongoDB connected'))
-.catch(err => {
-  console.log('⚠️ MongoDB connection error:', err.message);
-  console.log('⚠️ Server will continue without database connection');
-});
-
 const fileRoutes = require("./routes/fileRoutes");
+
+const connectDB = require('./config/db');
+
+connectDB();
 
 const app = express();
 const PORT = 5000;
@@ -61,3 +48,4 @@ const server = app.listen(PORT, () => {
 server.on('error', (error) => {
   console.error('❌ Server error:', error);
 });
+
